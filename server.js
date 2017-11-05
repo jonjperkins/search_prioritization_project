@@ -33,21 +33,56 @@ var currentTesterId = "";
 var currentTesterScore = 0;
 var testerScore = {};
 var testerScoreArray = [];
-var deviceArray = ["iPhone_3", "iPhone_5"];
-var countryArray = ["US", "JP"]
+var deviceArray = ["ALL"];
 var prioritizedTestersJsonArray = [];
 
 function getCountryMatches(country, callback) {
-	TesterObjects.find({ "country": country }, function (err, testerObject) {
-		if (err) return handleError(err);
-		testerObject.forEach(function(item) {
-			countryQueryMatches.push(item);
+	var countryLength = country.length
+	var testerCount = 0;
+	var countryCount = 0;
+	var totalTesterObjectCount = 0;
+	
+	if (country[0] === "ALL") {
+		TesterObjects.find(function (err, testerObject) {
+			if (err) return handleError(err);
+			testerObject.forEach(function(item) {
+				countryQueryMatches.push(item);
+				//console.log("Pushed: " + item)
+			})
+			callback(null, countryQueryMatches)
 		})
-		callback(null, countryQueryMatches)
-	})
+	} else {
+		country.forEach(function(country) {
+			// console.log("country looks like: " + country)
+			// console.log("country length: " + country.length)
+			TesterObjects.find({ "country": country }, function (err, testerObject) {
+				totalTesterObjectCount += testerObject.length
+				countryCount += 1;
+				if (err) return handleError(err);
+				testerObject.forEach(function(item) {
+					countryQueryMatches.push(item);
+					//console.log("Pushed: " + item)
+					testerCount += 1;
+					// console.log("testerCount: " + testerCount)
+					// console.log("testerTotalObjectCount: " + totalTesterObjectCount)
+					// console.log("countryCount: " + countryCount)
+					// console.log("country length: " + country.length)
+					if (testerCount === totalTesterObjectCount && countryCount === countryLength) {
+						//console.log(countryQueryMatches)
+						callback(null, countryQueryMatches)
+					}
+				})
+			})
+		})
+	}
 }
 
 function assignScore(testers, callback) {
+	if (deviceArray[0] === "ALL") {
+		deviceArray = ["iPhone_4", "iPhone_4S", "iPhone_5", "Galaxy_S3", "Galaxy_S4", 
+									"Nexus_4", "Droid_Razor", "Droid_DNA", "HTC_One", "iPhone_3"]
+	}
+	//console.log("number of device: " + deviceArray.length)
 	testers.forEach(function(tester) {
 		currentTesterId = tester.testerId
 		deviceArray.forEach(function(device) {
@@ -71,7 +106,7 @@ function sendTesterDataToBrowser(testerIds, callback) {
 		TesterObjects.find({ "testerId": testerId }, function (err, testerObject) {
 			prioritizedTestersJsonArray.push(testerObject[0]);
 			// this is correct //console.log("array thus far: " + prioritizedTestersJsonArray)
-			count +=1;
+			count += 1;
 			if (count === testerIds.length) {
 				//console.log("right before callback: " + prioritizedTestersJsonArray)
 				//console.log(prioritizedTestersJsonArray)
@@ -81,7 +116,7 @@ function sendTesterDataToBrowser(testerIds, callback) {
 	})
 }
 
-getCountryMatches("JP", function(err, data) {
+getCountryMatches(["ALL"], function(err, data) {
 	if (err) {
         console.log('error');
         return;
@@ -96,7 +131,7 @@ getCountryMatches("JP", function(err, data) {
         				console.log('error');
         				return;
     				} else {
-    					console.log("sorted testers right before submit to browser: " + data)
+    					//console.log("sorted testers right before submit to browser: " + data)
     					sendTesterDataToBrowser(data, function(err, data) {
     						if (err) {
 		        				console.log('error');
