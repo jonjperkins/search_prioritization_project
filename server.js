@@ -4,9 +4,6 @@ var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 var async = require('async');
-//const request = require('request');
-//var qs = require('qs');
-
 
 PORT = process.env.PORT || 8080;
 
@@ -22,9 +19,7 @@ var mongoDB = 'mongodb://jonperkins:apasswordineveruse@ds241895.mlab.com:41895/t
 mongoose.connect(mongoDB, {
   useMongoClient: true
 });
-
 var db = mongoose.connection;
-
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
 var testerObjectsSchema = new Schema({ 	testerId: Number, firstName: String, lastName: String, country: String, 
@@ -34,7 +29,7 @@ var testerObjectsSchema = new Schema({ 	testerId: Number, firstName: String, las
 
 var TesterObjects = mongoose.model('TesterObjects', testerObjectsSchema);
 
-
+//Placeholders
 var countryQueryMatches = [];
 var currentTesterId = "";
 var currentTesterScore = 0;
@@ -81,7 +76,6 @@ function assignScore(testers, callback) {
 		deviceArray = ["iPhone_4", "iPhone_4S", "iPhone_5", "Galaxy_S3", "Galaxy_S4", 
 									"Nexus_4", "Droid_Razor", "Droid_DNA", "HTC_One", "iPhone_3"]
 	}
-	console.log("device array: " + deviceArray)
 	testers.forEach(function(tester) {
 		currentTesterId = tester.testerId
 		deviceArray.forEach(function(device) {
@@ -90,29 +84,24 @@ function assignScore(testers, callback) {
 		testerScore[currentTesterId] = currentTesterScore
 		currentTesterScore = 0;
 	})
-	console.log(testerScore)
 	callback(null, testerScore)
 }
 
 function sortTesters(testerScores, callback) {
 	var keys = Object.keys(testerScores);
 	keys.sort(function(a, b) { 
-		console.log(testerScore[a])
 		return testerScore[b] - testerScore[a] });
-	console.log('new tester order: ' + keys[0])
 	callback(null, keys)
 }
 
 const getTesterFromDatabase = function(tester, callback) {
 	TesterObjects.find({ "testerId": tester }, function (err, testerObject) {
-		console.log('result of each db request' + testerObject[0])
 		prioritizedTestersJsonArray.push(testerObject[0])
 		callback(null)
 	})
 }
 
 function sendTesterDataToBrowser(testerIds, callback) {
-	console.log('tester ids order send data: ' + testerIds)
 	count = 0;
 	async.eachSeries(testerIds, getTesterFromDatabase, function(err) {
     if (err) {
@@ -127,7 +116,7 @@ function sendTesterDataToBrowser(testerIds, callback) {
 
 app.post('/', function(req, res, next) {
 
-	//reset counters  ---> PUT THIS IN SEPARATE FUNCTION
+	//Rest placeholders
 	countryQueryMatches = [];
 	currentTesterId = "";
 	currentTesterScore = 0;
@@ -136,33 +125,31 @@ app.post('/', function(req, res, next) {
 	deviceArray = [];
 	prioritizedTestersJsonArray = [];
 
+
 	requestBody = req.body
-	console.log(requestBody)
 	deviceArray = requestBody.device
+	var genericErrorMessage = "An error has occurred. Please try again."
 
 	getCountryMatches(requestBody.country, function(err, data) {
-		console.log('reguest body: ' + requestBody.country)
-		console.log 
 		if (err) {
-        console.log('error');
+        res.send( [{ "error": "error" }, { "message": "Error contacting the database. Please try again." }] );
         return;
     } else {
     	assignScore(data, function(err, data) {
     		if (err) {
-        		console.log('error');
+        		res.send( [{ "error": "error" }, { "message": genericErrorMessage }] );
         		return;
     		} else {
     			sortTesters(data, function(err, data) {
     				if (err) {
-        				console.log('error');
+        				res.send( [{ "error": "error" }, { "message": genericErrorMessage }] );
         				return;
     				} else {
     					sendTesterDataToBrowser(data, function(err, data) {
     						if (err) {
-		        				console.log('error');
+		        				res.send( [ { "error": "error" }, { "message": genericErrorMessage }] );
 		        				return;
 		    				} else {
-		    					console.log('what i send: ' + data)
 		    					res.send(data);
 		    					res.end();
 		    				}
