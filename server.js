@@ -3,11 +3,18 @@ var app = express();
 var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
+var async = require('async');
 //const request = require('request');
 //var qs = require('qs');
 
 
 PORT = process.env.PORT || 8080;
+
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
 
 app.use(bodyParser.json());
 
@@ -33,7 +40,8 @@ var currentTesterId = "";
 var currentTesterScore = 0;
 var testerScore = {};
 var testerScoreArray = [];
-var deviceArray = ["ALL"];
+var deviceArray = [];
+var testerOrder = [];
 var prioritizedTestersJsonArray = [];
 
 function getCountryMatches(country, callback) {
@@ -47,28 +55,19 @@ function getCountryMatches(country, callback) {
 			if (err) return handleError(err);
 			testerObject.forEach(function(item) {
 				countryQueryMatches.push(item);
-				//console.log("Pushed: " + item)
 			})
 			callback(null, countryQueryMatches)
 		})
 	} else {
 		country.forEach(function(country) {
-			// console.log("country looks like: " + country)
-			// console.log("country length: " + country.length)
 			TesterObjects.find({ "country": country }, function (err, testerObject) {
 				totalTesterObjectCount += testerObject.length
 				countryCount += 1;
 				if (err) return handleError(err);
 				testerObject.forEach(function(item) {
 					countryQueryMatches.push(item);
-					//console.log("Pushed: " + item)
 					testerCount += 1;
-					// console.log("testerCount: " + testerCount)
-					// console.log("testerTotalObjectCount: " + totalTesterObjectCount)
-					// console.log("countryCount: " + countryCount)
-					// console.log("country length: " + country.length)
 					if (testerCount === totalTesterObjectCount && countryCount === countryLength) {
-						//console.log(countryQueryMatches)
 						callback(null, countryQueryMatches)
 					}
 				})
@@ -82,7 +81,7 @@ function assignScore(testers, callback) {
 		deviceArray = ["iPhone_4", "iPhone_4S", "iPhone_5", "Galaxy_S3", "Galaxy_S4", 
 									"Nexus_4", "Droid_Razor", "Droid_DNA", "HTC_One", "iPhone_3"]
 	}
-	//console.log("number of device: " + deviceArray.length)
+	console.log("device array: " + deviceArray)
 	testers.forEach(function(tester) {
 		currentTesterId = tester.testerId
 		deviceArray.forEach(function(device) {
@@ -91,33 +90,60 @@ function assignScore(testers, callback) {
 		testerScore[currentTesterId] = currentTesterScore
 		currentTesterScore = 0;
 	})
+	console.log(testerScore)
 	callback(null, testerScore)
 }
 
 function sortTesters(testerScores, callback) {
-	let keys = Object.keys(testerScores);
-	keys.sort(function(a, b) { return testerScores[b] - testerScores[a] });
+	var keys = Object.keys(testerScores);
+	keys.sort(function(a, b) { 
+		console.log(testerScore[a])
+		return testerScore[b] - testerScore[a] });
+	console.log('new tester order: ' + keys[0])
 	callback(null, keys)
 }
 
-function sendTesterDataToBrowser(testerIds, callback) {
-	count = 0;
-	testerIds.forEach(function (testerId) {
-		TesterObjects.find({ "testerId": testerId }, function (err, testerObject) {
-			prioritizedTestersJsonArray.push(testerObject[0]);
-			// this is correct //console.log("array thus far: " + prioritizedTestersJsonArray)
-			count += 1;
-			if (count === testerIds.length) {
-				//console.log("right before callback: " + prioritizedTestersJsonArray)
-				//console.log(prioritizedTestersJsonArray)
-				callback(null, prioritizedTestersJsonArray)
-			}
-		})
+const getTesterFromDatabase = function(tester, callback) {
+	TesterObjects.find({ "testerId": tester }, function (err, testerObject) {
+		console.log('result of each db request' + testerObject[0])
+		prioritizedTestersJsonArray.push(testerObject[0])
+		callback(null)
 	})
 }
 
-getCountryMatches(["ALL"], function(err, data) {
-	if (err) {
+function sendTesterDataToBrowser(testerIds, callback) {
+	console.log('tester ids order send data: ' + testerIds)
+	count = 0;
+	async.eachSeries(testerIds, getTesterFromDatabase, function(err) {
+    if (err) {
+      console.log('An error occurred!');
+      console.log(err);
+      return;
+    }
+    callback(null, prioritizedTestersJsonArray);
+  })
+
+}
+
+app.post('/', function(req, res, next) {
+
+	//reset counters  ---> PUT THIS IN SEPARATE FUNCTION
+	countryQueryMatches = [];
+	currentTesterId = "";
+	currentTesterScore = 0;
+	testerScore = {};
+	testerScoreArray = [];
+	deviceArray = [];
+	prioritizedTestersJsonArray = [];
+
+	requestBody = req.body
+	console.log(requestBody)
+	deviceArray = requestBody.device
+
+	getCountryMatches(requestBody.country, function(err, data) {
+		console.log('reguest body: ' + requestBody.country)
+		console.log 
+		if (err) {
         console.log('error');
         return;
     } else {
@@ -131,15 +157,14 @@ getCountryMatches(["ALL"], function(err, data) {
         				console.log('error');
         				return;
     				} else {
-    					//console.log("sorted testers right before submit to browser: " + data)
     					sendTesterDataToBrowser(data, function(err, data) {
     						if (err) {
 		        				console.log('error');
 		        				return;
 		    				} else {
-		    					console.log(data)
-		    					// res.send(data);
-		    					// res.end();
+		    					console.log('what i send: ' + data)
+		    					res.send(data);
+		    					res.end();
 		    				}
     					})
     				}
@@ -147,27 +172,8 @@ getCountryMatches(["ALL"], function(err, data) {
     		}
     	})
     }
+	})
 })
-
-
-
-
-// app.post('/', function(req, res, next) {
-//   var request_url = req.body.get_url;
-//   var username = req.body.username;
-//   var api_key = req.body.api_key;
-
-//   request(request_url, function (error, response, body) {
-//       var fields = []
-//       var regex = /<input[\s\S]*?name="(.*?)"/g
-//     var item
-//     while (item = regex.exec(body))
-//       fields.push(item[1]);
-//       fields = fields.join(',');
-//       res.send(fields);
-//   });
-  
-// });
 
 app.listen(PORT, function () {
     console.log('Listening');
