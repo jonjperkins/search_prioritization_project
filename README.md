@@ -1,0 +1,1 @@
+To run this application, change into the project direct and install all dependencies by running `yarn install` or `npm install`. Once dependencies are installed, run `npm start` or `yarn start` from the terminal.
